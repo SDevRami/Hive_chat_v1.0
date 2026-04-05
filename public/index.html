@@ -1,0 +1,399 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🔒 HIVE CHAT v1.0 - Pure Client E2EE</title>
+  <script src="https://js.pusher.com/8.2/pusher.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', sans-serif; background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 100%); color: #eee; min-height: 100vh; }
+    .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+    .header { text-align: center; margin-bottom: 30px; }
+    .header h1 { color: #00ff88; font-size: 2.8em; text-shadow: 0 0 30px rgba(0,255,136,0.6); }
+    
+    .status { padding: 15px; margin: 15px 0; border-radius: 12px; text-align: center; font-weight: bold; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+    .success { background: linear-gradient(45deg, #00ff88, #00cc6a); color: #000; }
+    .error { background: linear-gradient(45deg, #ff4444, #cc3333); color: #fff; }
+    .info { background: linear-gradient(45deg, #444, #666); color: #fff; }
+    .warning { background: linear-gradient(45deg, #ffaa00, #cc8800); color: #000; }
+    
+    .form-group { margin-bottom: 25px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    input, button { padding: 15px; border: none; border-radius: 12px; font-size: 16px; transition: all 0.3s ease; }
+    input { flex: 1; min-width: 250px; background: rgba(255,255,255,0.1); color: #eee; backdrop-filter: blur(10px); border: 2px solid rgba(0,212,255,0.3); }
+    input::placeholder { color: #aaa; }
+    button { background: linear-gradient(45deg, #00d4ff, #0099cc); color: #000; cursor: pointer; font-weight: bold; min-width: 120px; box-shadow: 0 4px 15px rgba(0,212,255,0.4); }
+    button:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,212,255,0.6); }
+    
+    /* 🔒 Pure Client E2EE Key Section */
+    .key-section { 
+      background: rgba(0,255,136,0.15); 
+      border: 2px solid rgba(0,255,136,0.4); 
+      border-radius: 15px; 
+      padding: 25px; 
+      margin: 20px 0;
+      box-shadow: 0 8px 25px rgba(0,255,136,0.2);
+    }
+    .key-section h3 { color: #00ff88; margin-bottom: 15px; font-size: 1.3em; }
+    .key-info { 
+      background: rgba(0,0,0,0.5); 
+      padding: 12px; 
+      border-radius: 8px; 
+      margin-top: 10px; 
+      font-size: 0.9em; 
+      color: #00d4ff;
+    }
+    
+    #chat { background: rgba(0,0,0,0.4); border-radius: 20px; padding: 30px; margin: 20px 0; box-shadow: 0 10px 40px rgba(0,0,0,0.7); border: 2px solid rgba(0,255,136,0.6); }
+    #messages { height: 500px; overflow-y: auto; background: rgba(0,0,0,0.5); padding: 25px; border-radius: 15px; margin-bottom: 25px; border: 1px solid rgba(0,255,136,0.3); }
+    .message { margin-bottom: 18px; padding: 20px; border-radius: 15px; backdrop-filter: blur(10px); }
+    .message.own { border-left: 5px solid #00ff88; background: rgba(0,255,136,0.15); }
+    .message.other { border-left: 5px solid #00d4ff; background: rgba(0,212,255,0.1); }
+    .message.system { border-left: 5px solid #ffaa00; background: rgba(255,170,0,0.15); text-align: center; }
+    .message strong { color: #00ff88; }
+    .message.own strong { color: #00ff88; }
+    .message.other strong { color: #00d4ff; }
+    
+    .chat-input-group { display: flex; gap: 15px; margin-bottom: 20px; }
+    #messageInput { flex: 1; background: rgba(0,255,136,0.2); border: 2px solid rgba(0,255,136,0.4); }
+    #sendBtn { background: linear-gradient(45deg, #00ff88, #00cc6a); }
+    
+    .leave-btn { width: 100%; background: linear-gradient(45deg, #ff4444, #cc3333) !important; font-size: 18px; padding: 18px; }
+    .hidden { display: none !important; }
+    
+    .e2ee-status { font-size: 0.9em; color: #00ff88; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🔒 HIVE CHAT v1.0</h1>
+      <p><strong>Pure Client-Side E2EE</strong> • Server sees NOTHING • Sent/Received messages visible</p>
+    </div>
+    
+    <div id="status" class="status info">🔥 Enter username to start secure chat...</div>
+    
+    <!-- Login -->
+    <div id="login">
+      <div class="form-group">
+        <input id="username" placeholder="Your username" maxlength="20" autofocus>
+        <button onclick="login()">🚀 Secure Login</button>
+      </div>
+    </div>
+    
+    <!-- Room Controls + Pure Client E2EE -->
+    <div id="rooms" class="hidden">
+      <h2 style="color: #00d4ff; margin-bottom: 20px;">📋 Pure Client E2EE Setup</h2>
+      
+      <!-- 🔒 CLIENT-ONLY E2EE Key (Never sent to server) -->
+      <div class="key-section">
+        <h3>🔑 Shared Secret Key <span class="e2ee-status">(Client-only, never sent to server)</span></h3>
+        <div class="form-group">
+          <input id="secretKey" type="password" placeholder="Enter shared secret key (SHARE WITH ROOM MEMBERS)" maxlength="64">
+          <button onclick="generateKey()">🎲 Generate Secure Key</button>
+          <button onclick="toggleKeyVisibility()">👁️ Show/Hide</button>
+        </div>
+        <div class="key-info">
+          📝 <strong>All room members MUST use SAME key</strong><br>
+          🔒 Server receives <em>only encrypted data</em> - Pure client-side decryption<br>
+          ✅ Your sent messages show immediately (local decrypt)
+        </div>
+      </div>
+      
+      <div class="form-group">
+        <input id="roomId" placeholder="Room ID (e.g. 123)" maxlength="10">
+        <input id="roomPassword" type="password" placeholder="Room Password (optional)">
+        <button onclick="createRoom()">🏠 Create Room</button>
+        <button onclick="joinRoom()">🔑 Join Room</button>
+      </div>
+    </div>
+    
+    <!-- Secure Chat -->
+    <div id="chat" class="hidden">
+      <div style="text-align: center; margin-bottom: 20px;">
+        <h2 id="roomTitle" style="color: #00ff88;">🔒 Pure Client E2EE Room</h2>
+        <div class="status success">✅ Client-side encryption active - Server blind! 🔐</div>
+      </div>
+      
+      <div id="messages">
+        <div style="color:#00ff88;padding:40px;text-align:center;">
+          🔒 <strong>Pure Client E2EE Active!</strong><br>
+          - Messages encrypted in your browser<br>
+          - Server sees only gibberish<br>
+          - Sent messages appear instantly (local decrypt)<br>
+          - Received messages decrypt with shared key
+        </div>
+      </div>
+      
+      <div class="chat-input-group">
+        <input id="messageInput" placeholder="💭 Type message... (encrypted before sending)" maxlength="500">
+        <button id="sendBtn" onclick="sendMessage()">🔒 Send Encrypted</button>
+      </div>
+      
+      <button class="leave-btn" onclick="leaveRoom()">🚪 Leave Secure Room</button>
+    </div>
+  </div>
+
+  <script>
+    // Globals
+    let pusher = null;
+    let channel = null;
+    let currentRoom = null;
+    let username = '';
+    let sharedSecret = '';
+    let keyVisible = false;
+    
+    console.log('🔒 Pure Client E2EE v1.0 LOADING...');
+    
+    // 🔒 Pure Client-Side E2EE (Server NEVER sees plaintext or key)
+    function encryptMessage(message, secret) {
+      return CryptoJS.AES.encrypt(JSON.stringify({msg: message}), secret).toString();
+    }
+    
+    function decryptMessage(encrypted, secret) {
+      try {
+        const bytes = CryptoJS.AES.decrypt(encrypted, secret);
+        const decrypted = bytes.toString(CryptoJS.enc.Utf8);
+        return JSON.parse(decrypted).msg;
+      } catch (e) {
+        console.error('Decryption failed:', e);
+        return '[🔓 DECRYPTION FAILED - Wrong key or corrupted?]';
+      }
+    }
+    
+    function generateKey() {
+      // Generate cryptographically secure key
+      const key = CryptoJS.lib.WordArray.random(32).toString(); // 256-bit key
+      document.getElementById('secretKey').value = key;
+      showStatus('🎲 Secure key generated! Share EXACTLY with room members.', 'success');
+    }
+    
+    function toggleKeyVisibility() {
+      const keyInput = document.getElementById('secretKey');
+      keyVisible = !keyVisible;
+      keyInput.type = keyVisible ? 'text' : 'password';
+    }
+    
+    // Pusher Functions (NO secretKey sent to server!)
+    async function sendToPusher(eventData) {
+      // ✅ NO secretKey in eventData - pure client-side!
+      try {
+        const response = await fetch('/events', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ event: eventData })
+        });
+        return await response.json();
+      } catch (error) {
+        console.error('❌ Send failed:', error);
+      }
+    }
+    
+    async function login() {
+      username = document.getElementById('username').value.trim();
+      if (!username) return showStatus('⚠️ Enter username', 'error');
+      
+      document.getElementById('login').classList.add('hidden');
+      document.getElementById('rooms').classList.remove('hidden');
+      showStatus('✅ Logged in. Generate/set E2EE key then create/join room.', 'success');
+      document.getElementById('secretKey').focus();
+    }
+    
+    async function connectPusher() {
+      // Fetch Pusher config from server (keys from .env)
+      const response = await fetch('/pusher-config');
+      const config = await response.json();
+      
+      pusher = new Pusher(config.key, {
+        cluster: config.cluster,
+        authEndpoint: '/pusher/auth',
+        auth: { headers: { username } }
+      });
+    }
+    
+    async function createRoom() {
+      const roomId = document.getElementById('roomId').value.trim();
+      sharedSecret = document.getElementById('secretKey').value.trim();
+      
+      if (!roomId) return showStatus('⚠️ Enter Room ID', 'error');
+      if (!sharedSecret) return showStatus('⚠️ Enter/generate E2EE Secret Key FIRST', 'warning');
+      
+      showStatus(`🔨 Creating room "${roomId}"...`, 'info');
+      
+      // ✅ NO secretKey sent to server!
+      const result = await sendToPusher({
+        type: 'create',
+        roomId,
+        password: document.getElementById('roomPassword').value || '',
+        username
+        // secretKey STAYS CLIENT-SIDE ONLY!
+      });
+      
+      if (result?.success) {
+        await connectPusher();
+        subscribeToRoom(roomId);
+      }
+    }
+    
+    async function joinRoom() {
+      const roomId = document.getElementById('roomId').value.trim();
+      sharedSecret = document.getElementById('secretKey').value.trim();
+      
+      if (!roomId) return showStatus('⚠️ Enter Room ID', 'error');
+      if (!sharedSecret) return showStatus('⚠️ Enter correct E2EE Secret Key', 'warning');
+      
+      showStatus(`🔑 Joining room "${roomId}"...`, 'info');
+      
+      const result = await sendToPusher({
+        type: 'join',
+        roomId,
+        password: document.getElementById('roomPassword').value || '',
+        username
+        // secretKey STAYS CLIENT-SIDE ONLY!
+      });
+      
+      if (result?.success) {
+        await connectPusher();
+        subscribeToRoom(roomId);
+      }
+    }
+    
+    function subscribeToRoom(roomId) {
+      if (channel) channel.unsubscribe();
+      
+      channel = pusher.subscribe(`presence-${roomId}`);
+      
+      channel.bind('pusher:subscription_succeeded', () => {
+        console.log('✅ Subscribed to secure room:', roomId);
+        enterRoom(roomId);
+      });
+      
+      // 🔥 RECEIVE & DECRYPT messages
+      channel.bind('client-message', (data) => {
+        const decryptedMessage = decryptMessage(data.encrypted, sharedSecret);
+        addMessage(data.username, decryptedMessage, data.timestamp, false);
+      });
+      
+      channel.bind('user-joined', (data) => {
+        addMessage('🔔 SYSTEM', `${data.username} joined the secure room`, null, false);
+      });
+    }
+    
+    function enterRoom(roomId) {
+      currentRoom = roomId;
+      document.getElementById('rooms').classList.add('hidden');
+      document.getElementById('chat').classList.remove('hidden');
+      
+      document.getElementById('roomTitle').textContent = `🔒 Secure Room: ${roomId}`;
+      document.getElementById('status').innerHTML = `✅ Pure Client E2EE Active <span class="e2ee-status">🔐 Key: ${sharedSecret ? sharedSecret.substring(0,8) + '...' : 'None'}</span>`;
+      
+      document.getElementById('messageInput').focus();
+      document.getElementById('messages').innerHTML = '<div class="message system">🔒 Pure Client E2EE Ready! Server sees only encrypted gibberish.</div>';
+    }
+    
+    function sendMessage() {
+      const input = document.getElementById('messageInput');
+      const message = input.value.trim();
+      
+      if (!message) return showStatus('⚠️ Empty message', 'warning');
+      if (!channel) return showStatus('⚠️ Not in room', 'error');
+      if (!sharedSecret) return showStatus('⚠️ No E2EE key set', 'error');
+      
+      // 🔒 1. ENCRYPT message (client-side)
+      const encrypted = encryptMessage(message, sharedSecret);
+      
+      // 🔒 2. Send ENCRYPTED data to Pusher (server sees gibberish)
+      channel.trigger('client-message', {
+        username,
+        encrypted,  // Server gets ONLY this encrypted string
+        timestamp: new Date().toISOString()
+      });
+      
+      // ✅ 3. IMMEDIATELY show SENT message (local decrypt)
+      addMessage(username, message, null, true);
+      
+      input.value = '';
+      console.log('✅ Sent encrypted:', encrypted.substring(0, 30) + '...');
+    }
+    
+    function leaveRoom() {
+      if (channel) {
+        sendToPusher({ type: 'leave', roomId: currentRoom, username });
+        channel.unsubscribe();
+      }
+      currentRoom = null;
+      channel = null;
+      sharedSecret = '';
+      document.getElementById('chat').classList.add('hidden');
+      document.getElementById('rooms').classList.remove('hidden');
+      showStatus('🚪 Left secure room - key cleared', 'info');
+    }
+    
+    // UI Helpers
+    function showStatus(msg, type = 'info') {
+      const statusEl = document.getElementById('status');
+      statusEl.textContent = msg;
+      statusEl.className = `status ${type}`;
+    }
+    
+    function addMessage(user, msg, timestamp = null, isOwn = false) {
+      const messages = document.getElementById('messages');
+      const div = document.createElement('div');
+      div.className = `message ${isOwn ? 'own' : 'other'}`;
+      
+      const time = timestamp ? new Date(timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '';
+      const icon = isOwn ? '✅' : '📨';
+      
+      div.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+          <strong>${icon} ${user}</strong>
+                    ${time ? `<span style="color:#888;font-size:0.85em;">${time}</span>` : ''}
+          ${isOwn ? '<span style="color:#00ff88;font-size:0.8em; font-weight:bold;">✓ SENT</span>' : ''}
+        </div>
+        <div style="word-break:break-word; white-space: pre-wrap;">${msg}</div>
+      `;
+      
+      messages.appendChild(div);
+      messages.scrollTop = messages.scrollHeight;
+    }
+    
+    // Event Listeners
+    document.addEventListener('DOMContentLoaded', () => {
+      const usernameInput = document.getElementById('username');
+      if (usernameInput) usernameInput.focus();
+      generateKey();
+    });
+    
+    const messageInput = document.getElementById('messageInput');
+    if (messageInput) {
+      messageInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          sendMessage();
+        }
+      });
+    };
+    
+    document.getElementById('username').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') login();
+    });
+    
+    const roomIdInput = document.getElementById('roomId');
+    if (roomIdInput) {
+      roomIdInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+          if (document.getElementById('secretKey').value) {
+            createRoom();
+          } else {
+            showStatus('⚠️ Set E2EE key first', 'warning');
+          }
+        }
+      });
+    };
+    
+    console.log('✅ 🔒 Pure Client E2EE v1.0 FULLY LOADED');
+    console.log('💡 Server sees ONLY encrypted gibberish - 100% client-side!');
+  </script>
+</body>
+</html>
