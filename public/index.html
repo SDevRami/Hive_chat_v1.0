@@ -61,6 +61,35 @@
     .hidden { display: none !important; }
     
     .e2ee-status { font-size: 0.9em; color: #00ff88; }
+    /* 👥 Room Users Panel */
+    .users-panel {
+      background: rgba(0,212,255,0.15); 
+      border: 2px solid rgba(0,212,255,0.4); 
+      border-radius: 15px; 
+      padding: 20px; 
+      margin-bottom: 20px;
+      box-shadow: 0 8px 25px rgba(0,212,255,0.2);
+    }
+    .users-panel h3 { color: #00d4ff; margin-bottom: 15px; text-align: center; }
+    #userList { 
+      max-height: 300px; 
+      overflow-y: auto; 
+      background: rgba(0,0,0,0.5); 
+      border-radius: 10px; 
+      padding: 15px;
+      list-style: none;
+    }
+    #userList li { 
+      padding: 8px 12px; 
+      margin-bottom: 8px; 
+      background: rgba(255,255,255,0.1); 
+      border-radius: 8px; 
+      font-weight: 500;
+      color: #00ff88;
+    }
+    #userList li.owner::before { content: "👑 "; }
+    #userList li.self { background: rgba(0,255,136,0.3); border-left: 4px solid #00ff88; }
+    .user-count { text-align: center; color: #00d4ff; font-weight: bold; margin-top: 10px; }
   </style>
 </head>
 <body>
@@ -108,7 +137,14 @@
         <h2 id="roomTitle" style="color: #00ff88;">🔒 Pure Client E2EE Room</h2>
         <button class="leave-btn" onclick="leaveRoom()">🚪 Leave Secure Room</button>
       </div>
-      
+
+      <!-- 👥 Room Users -->
+      <div class="users-panel" id="usersPanel">
+        <h3>👥 Room Users</h3>
+        <ul id="userList"></ul>
+        <div class="user-count" id="userCount">0 users</div>
+      </div>
+
       <div id="messages">
       </div>
       
@@ -130,7 +166,6 @@
     
     console.log('🔒 Pure Client E2EE v1.0 LOADING...');
     
-    // 🔒 Pure Client-Side E2EE (Server NEVER sees plaintext or key)
     function encryptMessage(message, secret) {
       return CryptoJS.AES.encrypt(JSON.stringify({msg: message}), secret).toString();
     }
@@ -166,7 +201,6 @@
       keyInput.type = keyVisible ? 'text' : 'password';
     }
     
-    // Pusher Functions (NO secretKey sent to server!)
     async function sendToPusher(eventData) {
       // ✅ NO secretKey in eventData - pure client-side!
       try {
@@ -268,8 +302,9 @@
       
       channel = pusher.subscribe(`presence-${roomId}`);
       
-      channel.bind('pusher:subscription_succeeded', () => {
+      channel.bind('pusher:subscription_succeeded', (members) => {
         console.log('✅ Subscribed to secure room:', roomId);
+        updateUserList(members.members);  // ← NEW: Update users on subscribe
         enterRoom(roomId);
       });
       
@@ -279,11 +314,44 @@
         addMessage(data.username, decryptedMessage, data.timestamp, false);
       });
       
+      // 👥 User events
       channel.bind('user-joined', (data) => {
         addMessage('🔔 SYSTEM', `${data.username} joined the secure room`, null, false);
       });
+      
+      channel.bind('user-left', (data) => {
+        addMessage('🔔 SYSTEM', `${data.username} left the room`, null, false);
+      });
+      
+      // 🔥 Pusher presence events for real-time user list
+      channel.bind('pusher:member_added', (member) => {
+        updateUserList(channel.members.members);
+      });
+      
+      channel.bind('pusher:member_removed', (member) => {
+        updateUserList(channel.members.members);
+      });
     }
     
+    function updateUserList(members) {
+      const userList = document.getElementById('userList');
+      const userCount = document.getElementById('userCount');
+      
+      userList.innerHTML = '';
+      
+      Object.values(members).forEach(member => {
+        const li = document.createElement('li');
+        const isSelf = member.info.username === username;
+        const isOwner = member.info.username === 'owner'; // Server sets this
+        
+        li.className = isSelf ? 'self' : (isOwner ? 'owner' : '');
+        li.textContent = member.info.username;
+        userList.appendChild(li);
+      });
+      
+      userCount.textContent = `${Object.keys(members).length} users online`;
+    }
+
     function enterRoom(roomId) {
       currentRoom = roomId;
       document.getElementById('rooms').classList.add('hidden');
