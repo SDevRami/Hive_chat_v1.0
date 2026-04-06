@@ -131,11 +131,15 @@ async function createRoom(event) {
     console.log('✅ Room created:', roomData);
     
     // PUSHER: Notify everyone
-    await pusher.trigger(`presence-${event.roomId}`, 'room-created', {
-      roomId: event.roomId,
-      owner: event.username,
-      users: roomData.users
-    });
+    try {
+      await pusher.trigger(`presence-${event.roomId}`, 'room-created', {
+        roomId: event.roomId,
+        owner: event.username,
+        users: roomData.users
+      });
+    } catch (pusherError) {
+      console.error('Pusher trigger failed:', pusherError.message);
+    }
     
   } catch (error) {
     console.error('❌ Create failed:', error);
