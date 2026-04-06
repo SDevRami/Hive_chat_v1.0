@@ -41,12 +41,17 @@ app.get('/', (req, res) => {
 app.post('/pusher/auth', async (req, res) => {
   const socketId = req.body.socket_id;
   const channel = req.body.channel_name;
+  
+  const username = req.headers.username || req.body.username || req.query.username || 'anonymous';
+  
   const presenceData = {
-    user_id: req.body.username || 'anonymous',
+    user_id: username,
     user_info: {
-      username: req.body.username || 'anonymous'
+      username: username
     }
   };
+  
+  console.log(`🔐 Auth: ${username} → ${channel}`);  
   
   const authResponse = pusher.authenticate(socketId, channel, presenceData);
   res.send(authResponse);
