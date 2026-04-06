@@ -15,17 +15,26 @@ const userHeartbeat = new Map();
 
 // Middleware
 app.use(cors({
-  origin: (origin, callback) => {
+  origin: function(origin, callback) {
+    console.log('🌐 Request origin:', origin);  // DEBUG
+    
     const allowed = [
+      undefined,
       'http://localhost:3000',
-      'https://hive-chat-v1-0.onrender.com/'
+      'https://hive-chat-v1-0.onrender.com'
     ];
-    if (!origin || allowed.some(domain => origin.endsWith(domain))) {
+    
+    // ✅ CORRECT: Check if origin matches ANY allowed
+    if (!origin || allowed.includes(origin)) {
+      console.log('✅ CORS allowed:', origin);
       callback(null, true);
     } else {
+      console.log('🚫 CORS blocked:', origin);
       callback(new Error('CORS not allowed'));
     }
-  }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'OPTIONS']
 }));
 
 app.use(express.json({ limit: '10mb' }));
