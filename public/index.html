@@ -209,7 +209,7 @@
       showStatus(`✅ Welcome ${username}! Set E2EE key → create/join.`, 'success');
     }
     
-    async function connectPusher() {async function connectPusher() {
+    async function connectPusher() {
       const response = await fetch('/pusher-config');
       const config = await response.json();
       
