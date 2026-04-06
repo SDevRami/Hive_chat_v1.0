@@ -106,20 +106,16 @@
     <div id="chat" class="hidden">
       <div style="text-align: center; margin-bottom: 20px;">
         <h2 id="roomTitle" style="color: #00ff88;">🔒 Pure Client E2EE Room</h2>
+        <button class="leave-btn" onclick="leaveRoom()">🚪 Leave Secure Room</button>
       </div>
       
       <div id="messages">
-        <div style="color:#00ff88;padding:40px;text-align:center;">
-          🔒 <strong>Pure Client E2EE Active!</strong><br>
-        </div>
       </div>
       
       <div class="chat-input-group">
-        <input id="messageInput" placeholder="💭 Type message..." maxlength="500">
-        <button id="sendBtn" onclick="sendMessage()">🔒 Send Encrypted</button>
+        <input id="messageInput" placeholder="Type message..." maxlength="500">
+        <button id="sendBtn" onclick="sendMessage()">➤</button>
       </div>
-      
-      <button class="leave-btn" onclick="leaveRoom()">🚪 Leave Secure Room</button>
     </div>
   </div>
 
