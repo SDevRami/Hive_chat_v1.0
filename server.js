@@ -15,26 +15,17 @@ const userHeartbeat = new Map();
 
 // Middleware
 app.use(cors({
-  origin: function(origin, callback) {
-    console.log('🌐 Request origin:', origin);  // DEBUG
-    
+  origin: (origin, callback) => {
     const allowed = [
-      undefined,
       'http://localhost:3000',
-      'https://hive-chat-v1-0.onrender.com'
+      'https://hive-chat-v1-0.onrender.com/'
     ];
-    
-    // ✅ CORRECT: Check if origin matches ANY allowed
-    if (!origin || allowed.includes(origin)) {
-      console.log('✅ CORS allowed:', origin);
+    if (!origin || allowed.some(domain => origin.endsWith(domain))) {
       callback(null, true);
     } else {
-      console.log('🚫 CORS blocked:', origin);
       callback(new Error('CORS not allowed'));
     }
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'OPTIONS']
+  }
 }));
 
 app.use(express.json({ limit: '10mb' }));
@@ -204,20 +195,18 @@ async function createRoom(event) {
     
     rooms.set(event.roomId, roomData);
   
-    await pusher.trigger('pusher:global', 'room-ready', { 
-      roomId: event.roomId,
-      owner: event.username 
-    });
-    
-    // Keep existing room trigger
-    await pusher.trigger(`presence-${event.roomId}`, 'room-created', {
-      roomId: event.roomId,
-      owner: event.username,
-      users: roomData.users
-    });
-    
-    return { success: true, message: 'Room created' };
-
+      await pusher.trigger('global-notifications', 'room-ready', {
+        roomId: event.roomId,
+        owner: event.username
+      });
+      
+      await pusher.trigger(`presence-${event.roomId}`, 'room-created', {
+        roomId: event.roomId,
+        owner: event.username,
+        users: roomData.users
+      });
+      
+      return { success: true };
   } catch (error) {
     console.error('❌ Create failed:', error);
     return { success: false, error: error.message };
