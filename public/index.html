@@ -175,6 +175,10 @@
         const bytes = CryptoJS.AES.decrypt(encrypted, secret);
         const decrypted = bytes.toString(CryptoJS.enc.Utf8);
         if (!decrypted) throw new Error('Empty decrypt');
+        const statusMsg = document.getElementById('status');
+        if (statusMsg.innerHTML === '🔓 DECRYPTION FAILED - Check shared key matches!') {
+          statusMsg.innerHTML = `🔐 Secret Key: ${sharedSecret ? sharedSecret.substring(0,2) + '...' : 'None'}`;
+        }
         return JSON.parse(decrypted).msg;
       } catch (e) {
         console.error('Decryption failed:', e);
