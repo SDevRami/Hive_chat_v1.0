@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -213,21 +213,22 @@
     }
     
     async function createRoom() {
-      const roomId = document.getElementById('roomId').value.trim();
+      let roomId = document.getElementById('roomId').value.trim();
       sharedSecret = document.getElementById('secretKey').value.trim();
       
-      if (!roomId) return showStatus('⚠️ Enter Room ID', 'error');
+      // ✅ FIX: Clean roomId - no backslashes/special chars
+      roomId = roomId.replace(/[^a-zA-Z0-9-]/g, '').substring(0, 10);
+      
+      if (!roomId) return showStatus('⚠️ Enter valid Room ID (letters/numbers only)', 'error');
       if (!sharedSecret) return showStatus('⚠️ Enter/generate E2EE Secret Key FIRST', 'warning');
       
       showStatus(`🔨 Creating room "${roomId}"...`, 'info');
       
-      // ✅ NO secretKey sent to server!
       const result = await sendToPusher({
         type: 'create',
         roomId,
         password: document.getElementById('roomPassword').value || '',
         username
-        // secretKey STAYS CLIENT-SIDE ONLY!
       });
       
       if (result?.success) {
@@ -237,10 +238,13 @@
     }
     
     async function joinRoom() {
-      const roomId = document.getElementById('roomId').value.trim();
+      let roomId = document.getElementById('roomId').value.trim();
       sharedSecret = document.getElementById('secretKey').value.trim();
       
-      if (!roomId) return showStatus('⚠️ Enter Room ID', 'error');
+      // ✅ FIX: Clean roomId
+      roomId = roomId.replace(/[^a-zA-Z0-9-]/g, '').substring(0, 10);
+      
+      if (!roomId) return showStatus('⚠️ Enter valid Room ID', 'error');
       if (!sharedSecret) return showStatus('⚠️ Enter correct E2EE Secret Key', 'warning');
       
       showStatus(`🔑 Joining room "${roomId}"...`, 'info');
