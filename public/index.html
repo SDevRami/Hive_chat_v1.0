@@ -178,6 +178,7 @@
         const statusMsg = document.getElementById('status');
         if (statusMsg.innerHTML === '🔓 DECRYPTION FAILED - Check shared key matches!') {
           statusMsg.innerHTML = `🔐 Secret Key: ${sharedSecret ? sharedSecret.substring(0,2) + '...' : 'None'}`;
+          statusMsg.className = `status ${type}`;
         }
         return JSON.parse(decrypted).msg;
       } catch (e) {
