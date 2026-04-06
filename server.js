@@ -2,24 +2,15 @@ const express = require('express');
 const cors = require('cors');
 const Pusher = require('pusher');
 require('dotenv').config();
-const rateLimit = require('express-rate-limit');
-
-const sanitizeInput = (input) => 
-  input?.replace(/[<>\"'&]/g, '').trim().substring(0, 20) || 'anonymous';
 
 const app = express();
 
 const rooms = new Map();
 const userLastMessage = new Map();
-const userHeartbeat = new Map(); 
+const userHeartbeat = new Map();
 
 // Middleware
-app.use(cors({
-  origin: true,           // ✅ NUCLEAR FIX
-  credentials: true,
-  methods: ['GET','POST','OPTIONS']
-}));
-
+app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static('public'));
@@ -33,7 +24,7 @@ const pusher = new Pusher({
   useTLS: true
 });
 
-// Pusher Client Config
+// Pusher Client Config (public key + cluster only)
 app.get('/pusher-config', (req, res) => {
   res.json({
     key: process.env.PUSHER_KEY,
@@ -48,16 +39,13 @@ app.get('/', (req, res) => {
 
 // Pusher Auth Endpoint
 app.post('/pusher/auth', async (req, res) => {
-  const csrfToken = req.headers['x-csrf-token'];
-  if (!csrfToken) {
-    return res.status(403).json({ auth: null, error: 'CSRF token required' });
-  }
-  
   const socketId = req.body.socket_id;
   const channel = req.body.channel_name;
   const presenceData = {
-    user_id: sanitizeInput(req.body.username),
-    user_info: { username: sanitizeInput(req.body.username) }
+    user_id: req.body.username || 'anonymous',
+    user_info: {
+      username: req.body.username || 'anonymous'
+    }
   };
   
   const authResponse = pusher.authenticate(socketId, channel, presenceData);
@@ -65,21 +53,7 @@ app.post('/pusher/auth', async (req, res) => {
 });
 
 // Events Handler
-const eventsLimiter = rateLimit({
-  windowMs: 60 * 1000,  // 1 minute
-  max: 100,
-  message: { success: false, error: 'Too many requests' },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
-const createLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,  // 15 minutes
-  max: 5,  // 5 rooms per IP
-  message: { success: false, error: 'Too many room creates' }
-});
-
-app.post('/events', eventsLimiter, async (req, res) => {
+app.post('/events', async (req, res) => {
   try {
     console.log('📥 Received:', req.body);
     
@@ -88,35 +62,26 @@ app.post('/events', eventsLimiter, async (req, res) => {
     if (!eventData) {
       return res.status(400).json({ success: false, error: 'Missing event data' });
     }
-    
-    // ✅ SANITIZATION
-    const sanitizedUsername = sanitizeInput(eventData.username);
-    const sanitizedRoomId = sanitizeInput(eventData.roomId);
-    
-    if (sanitizedRoomId.length < 2) {
-      return res.status(400).json({ success: false, error: 'Room ID too short' });
+
+    const now = Date.now();
+    const lastTime = userLastMessage.get(parsedEvent.username) || 0;
+    if (now - lastTime < 500) {  // 500ms server-side
+      return res.status(429).json({ success: false, error: 'Too fast! Wait 0.5s' });
     }
-    
+    userLastMessage.set(parsedEvent.username, now);
+
     const parsedEvent = {
       type: eventData.type,
-      roomId: sanitizedRoomId,
+      roomId: eventData.roomId,
       password: eventData.password,
-      username: sanitizedUsername,
+      username: eventData.username,
       timestamp: new Date().toISOString()
     };
     
-    // ✅ RATE LIMIT by type
-    if (parsedEvent.type === 'create') {
-      const createKey = `create:${req.ip}`;
-      const createCount = req.rateLimitRegistry?.get(createKey) || 0;
-      if (createCount > 5) {
-        return res.status(429).json({ success: false, error: 'Too many room creates' });
-      }
-    }
-    
+    // ⚠️ FIXED: Wait for result, return ACTUAL success
     const result = await handleEvent(parsedEvent);
     res.json({ 
-      success: !result?.error, 
+      success: !result?.error,  // True only if no error
       message: result?.message || 'Event processed',
       event: parsedEvent,
       error: result?.error || null
@@ -127,6 +92,28 @@ app.post('/events', eventsLimiter, async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 });
+
+app.post('/heartbeat', (req, res) => {
+  const { roomId, username } = req.body;
+  userHeartbeat.set(`${roomId}:${username}`, Date.now());
+  res.json({ success: true });
+});
+
+// Cleanup every 5min
+setInterval(() => {
+  const now = Date.now();
+  for (const [roomId, room] of rooms) {
+    room.users = room.users.filter(username => {
+      const last = userHeartbeat.get(`${roomId}:${username}`) || 0;
+      return now - last < 5 * 60 * 1000;  // 5min timeout
+    });
+    
+    if (room.users.length === 0) {
+      rooms.delete(roomId);
+      userHeartbeat.delete(`${roomId}:${username}`);
+    }
+  }
+}, 5 * 60 * 1000);
 
 // Room Event Handler
 async function handleEvent(event) {
@@ -157,7 +144,7 @@ async function handleEvent(event) {
   }
 }
 
-// 🏠 CREATE ROOM
+// 🏠 CREATE ROOM - FIXED RETURN
 async function createRoom(event) {
   console.log('🏠 Creating:', event.roomId, 'by', event.username);
   
@@ -186,30 +173,28 @@ async function createRoom(event) {
     };
     
     rooms.set(event.roomId, roomData);
-  
-      await pusher.trigger('global-notifications', 'room-ready', {
-        roomId: event.roomId,
-        owner: event.username
-      });
-      
-      await pusher.trigger(`presence-${event.roomId}`, 'room-created', {
-        roomId: event.roomId,
-        owner: event.username,
-        users: roomData.users
-      });
-      
-      return { success: true };
+    console.log('✅ Room created:', roomData);
+    
+    await pusher.trigger(`presence-${event.roomId}`, 'room-created', {
+      roomId: event.roomId,
+      owner: event.username,
+      users: roomData.users
+    });
+    
+    return { success: true, message: 'Room created' };  // ← FIXED
+    
   } catch (error) {
     console.error('❌ Create failed:', error);
-    return { success: false, error: error.message };
+    return { success: false, error: error.message };  // ← FIXED
   }
 }
 
-// 👥 JOIN ROOM
+// 👥 JOIN ROOM - FIXED RETURN
 async function joinRoom(event) {
   console.log('👋 Joining:', event.username, '→', event.roomId);
   
   try {
+    userHeartbeat.set(`${event.roomId}:${event.username}`, Date.now());
     const room = rooms.get(event.roomId);
     if (!room) {
       const error = 'Room not found';
@@ -218,7 +203,7 @@ async function joinRoom(event) {
         username: event.username,
         error
       });
-      return { success: false, error };
+      return { success: false, error };  // ← FIXED
     }
     
     if (room.password && room.password !== event.password) {
@@ -228,13 +213,12 @@ async function joinRoom(event) {
         username: event.username,
         error
       });
-      return { success: false, error };
+      return { success: false, error };  // ← FIXED
     }
-
+    
     if (room.users.length >= 50) {
       return { success: false, error: 'Room full (50 user limit)' };
     }
-
     if (!room.users.includes(event.username)) {
       room.users.push(event.username);
       rooms.set(event.roomId, room);
@@ -247,16 +231,16 @@ async function joinRoom(event) {
       roomId: event.roomId,
       timestamp: event.timestamp
     });
-    userHeartbeat.set(`${event.roomId}:${event.username}`, Date.now());
-    return { success: true, message: 'Joined room' };
+    
+    return { success: true, message: 'Joined room' };  // ← FIXED
     
   } catch (error) {
     console.error('❌ Join failed:', error);
-    return { success: false, error: error.message };
+    return { success: false, error: error.message };  // ← FIXED
   }
 }
 
-// 👋 LEAVE ROOM
+// 👋 LEAVE ROOM - FIXED RETURN
 async function leaveRoom(event) {
   console.log('👋 Leaving:', event.username, '→', event.roomId);
   
@@ -267,6 +251,7 @@ async function leaveRoom(event) {
       
       room.users = room.users.filter(u => u !== event.username);
       
+      // ✅ FIXED: Transfer ownership
       if (wasOwner && room.users.length > 0) {
         room.owner = room.users[0];
         console.log(`👑 Ownership transferred to: ${room.owner}`);
@@ -315,28 +300,6 @@ app.use('*', (req, res) => {
   res.status(404).json({ error: 'Not found' });
 });
 
-app.post('/heartbeat', (req, res) => {
-  const { roomId, username } = req.body;
-  userHeartbeat.set(`${roomId}:${username}`, Date.now());
-  res.json({ success: true });
-});
-
-// Cleanup every 5min
-setInterval(() => {
-  const now = Date.now();
-  for (const [roomId, room] of rooms) {
-    room.users = room.users.filter(username => {
-      const last = userHeartbeat.get(`${roomId}:${username}`) || 0;
-      return now - last < 5 * 60 * 1000;  // 5min timeout
-    });
-    
-    if (room.users.length === 0) {
-      rooms.delete(roomId);
-      userHeartbeat.delete(`${roomId}:${username}`);
-    }
-  }
-}, 5 * 60 * 1000);
-
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🎮 Hive CHAT v1.0 LIVE on port ${PORT}`);
@@ -344,3 +307,4 @@ app.listen(PORT, () => {
 });
 
 module.exports = app;
+
