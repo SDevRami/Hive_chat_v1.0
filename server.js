@@ -32,7 +32,7 @@ app.get('/pusher-config', (req, res) => {
 
 // Serve index.html
 app.get('/', (req, res) => {
-  res.sendFile(__dirname + '/index.html');
+  res.sendFile(__dirname + '/public/index.html');
 });
 
 // Pusher Auth Endpoint
