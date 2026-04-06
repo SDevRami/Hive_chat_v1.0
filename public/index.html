@@ -165,7 +165,7 @@
     let keyVisible = false;
     
     console.log('🔒 Pure Client E2EE v1.0 LOADING...');
-    
+
     function encryptMessage(message, secret) {
       return CryptoJS.AES.encrypt(JSON.stringify({msg: message}), secret).toString();
     }
@@ -218,7 +218,7 @@
     async function login() {
       username = document.getElementById('username').value.trim();
       if (!username) return showStatus('⚠️ Enter username', 'error');
-      
+      window.username = username;
       document.getElementById('login').classList.add('hidden');
       document.getElementById('rooms').classList.remove('hidden');
       showStatus('✅ Logged in. Generate/set E2EE key then create/join room.', 'success');
@@ -302,9 +302,9 @@
       
       channel = pusher.subscribe(`presence-${roomId}`);
       
-      channel.bind('pusher:subscription_succeeded', (members) => {
+      channel.bind('pusher:subscription_succeeded', () => {  // ← Remove members param
         console.log('✅ Subscribed to secure room:', roomId);
-        updateUserList(members.members);  // ← NEW: Update users on subscribe
+        updateUserList(channel.members.members);  // ← Get from channel
         enterRoom(roomId);
       });
       
@@ -340,12 +340,14 @@
       userList.innerHTML = '';
       
       Object.values(members).forEach(member => {
+        // ✅ FIXED: Handle Pusher presence data structure
+        const username = member.info?.username || member.id || 'Unknown';
         const li = document.createElement('li');
-        const isSelf = member.info.username === username;
-        const isOwner = member.info.username === 'owner'; // Server sets this
+        const isSelf = username === window.username;  // Use global username
+        const isOwner = false; // Owner detection via server events only
         
         li.className = isSelf ? 'self' : (isOwner ? 'owner' : '');
-        li.textContent = member.info.username;
+        li.textContent = username;
         userList.appendChild(li);
       });
       
