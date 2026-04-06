@@ -335,9 +335,7 @@
       
       div.innerHTML = `
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-          <strong>${icon} ${user}</strong>
-                    ${time ? `<span style="color:#888;font-size:0.85em;">${time}</span>` : ''}
-          ${isOwn ? '<span style="color:#00ff88;font-size:0.8em; font-weight:bold;">✓ SENT</span>' : ''}
+          <strong>${icon} ${user}</strong>${time ? `<span style="color:#888;font-size:0.85em;">${time}</span>` : ''}
         </div>
         <div style="word-break:break-word; white-space: pre-wrap;">${msg}</div>
       `;
