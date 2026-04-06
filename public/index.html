@@ -226,7 +226,7 @@
         }
       });
 
-      pusher.subscribe('pusher:global').bind('room-ready', (data) => {
+      pusher.subscribe('global-notifications').bind('room-ready', (data) => {
         if (data.roomId === currentRoomAttempt) {
           console.log('✅ Room ready, subscribing:', data.roomId);
           subscribeToRoom(data.roomId);
