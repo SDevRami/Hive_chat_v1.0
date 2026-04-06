@@ -9,9 +9,7 @@
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: 'Segoe UI', sans-serif; background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 100%); color: #eee; min-height: 100vh; }
-    .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
-    .header { text-align: center; margin-bottom: 30px; }
-    .header h1 { color: #00ff88; font-size: 2.8em; text-shadow: 0 0 30px rgba(0,255,136,0.6); }
+    .container { max-width: 1200px; margin: 0 auto; padding: 10px; }
     
     .status { padding: 15px; margin: 15px 0; border-radius: 12px; text-align: center; font-weight: bold; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
     .success { background: linear-gradient(45deg, #00ff88, #00cc6a); color: #000; }
@@ -46,18 +44,18 @@
     }
     
     #chat { background: rgba(0,0,0,0.4); border-radius: 20px; padding: 30px; margin: 20px 0; box-shadow: 0 10px 40px rgba(0,0,0,0.7); border: 2px solid rgba(0,255,136,0.6); }
-    #messages { height: 500px; overflow-y: auto; background: rgba(0,0,0,0.5); padding: 25px; border-radius: 15px; margin-bottom: 25px; border: 1px solid rgba(0,255,136,0.3); }
+    #messages { height: 500px; overflow-y: auto; background: rgba(0,0,0,0.5); padding: 10px; border-radius: 15px; margin-bottom: 25px; border: 1px solid rgba(0,255,136,0.3); }
     .message { margin-bottom: 18px; padding: 20px; border-radius: 15px; backdrop-filter: blur(10px); }
     .message.own { border-left: 5px solid #00ff88; background: rgba(0,255,136,0.15); }
-    .message.other { border-left: 5px solid #00d4ff; background: rgba(0,212,255,0.1); }
+    .message.other { border-right: 5px solid #00d4ff; background: rgba(0,212,255,0.1); }
     .message.system { border-left: 5px solid #ffaa00; background: rgba(255,170,0,0.15); text-align: center; }
     .message strong { color: #00ff88; }
     .message.own strong { color: #00ff88; }
     .message.other strong { color: #00d4ff; }
     
-    .chat-input-group { display: flex; gap: 15px; margin-bottom: 20px; }
-    #messageInput { flex: 1; background: rgba(0,255,136,0.2); border: 2px solid rgba(0,255,136,0.4); }
-    #sendBtn { background: linear-gradient(45deg, #00ff88, #00cc6a); }
+    .chat-input-group { display: flex; gap: 15px; margin-bottom: 20px;}
+    #messageInput {background: rgba(0,255,136,0.2); border: 2px solid rgba(0,255,136,0.4); width: 90%;}
+    #sendBtn { background: linear-gradient(45deg, #00ff88, #00cc6a); width: 10%;}
     
     .leave-btn { width: 100%; background: linear-gradient(45deg, #ff4444, #cc3333) !important; font-size: 18px; padding: 18px; }
     .hidden { display: none !important; }
@@ -67,11 +65,6 @@
 </head>
 <body>
   <div class="container">
-    <div class="header">
-      <h1>🔒 HIVE CHAT v1.0</h1>
-      <p><strong>Pure Client-Side E2EE</strong> • Server sees NOTHING • Sent/Received messages visible</p>
-    </div>
-    
     <div id="status" class="status info">🔥 Enter username to start secure chat...</div>
     
     <!-- Login -->
@@ -113,21 +106,16 @@
     <div id="chat" class="hidden">
       <div style="text-align: center; margin-bottom: 20px;">
         <h2 id="roomTitle" style="color: #00ff88;">🔒 Pure Client E2EE Room</h2>
-        <div class="status success">✅ Client-side encryption active - Server blind! 🔐</div>
       </div>
       
       <div id="messages">
         <div style="color:#00ff88;padding:40px;text-align:center;">
           🔒 <strong>Pure Client E2EE Active!</strong><br>
-          - Messages encrypted in your browser<br>
-          - Server sees only gibberish<br>
-          - Sent messages appear instantly (local decrypt)<br>
-          - Received messages decrypt with shared key
         </div>
       </div>
       
       <div class="chat-input-group">
-        <input id="messageInput" placeholder="💭 Type message... (encrypted before sending)" maxlength="500">
+        <input id="messageInput" placeholder="💭 Type message..." maxlength="500">
         <button id="sendBtn" onclick="sendMessage()">🔒 Send Encrypted</button>
       </div>
       
@@ -290,10 +278,10 @@
       document.getElementById('chat').classList.remove('hidden');
       
       document.getElementById('roomTitle').textContent = `🔒 Secure Room: ${roomId}`;
-      document.getElementById('status').innerHTML = `✅ Pure Client E2EE Active <span class="e2ee-status">🔐 Key: ${sharedSecret ? sharedSecret.substring(0,8) + '...' : 'None'}</span>`;
+      document.getElementById('status').innerHTML = `🔐 Secret Key: ${sharedSecret ? sharedSecret.substring(0,2) + '...' : 'None'}</span>`;
       
       document.getElementById('messageInput').focus();
-      document.getElementById('messages').innerHTML = '<div class="message system">🔒 Pure Client E2EE Ready! Server sees only encrypted gibberish.</div>';
+      document.getElementById('messages').innerHTML = '<div class="message system">🔒 Pure Client E2EE Ready!.</div>';
     }
     
     function sendMessage() {
