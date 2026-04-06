@@ -99,7 +99,9 @@
         <input id="roomPassword" type="password" placeholder="Room Password (optional)">
         <button onclick="createRoom()">🏠 Create Room</button>
         <button onclick="joinRoom()">🔑 Join Room</button>
+        <button onclick="copyRoomInvite()" style="background: linear-gradient(45deg, #00ff88, #00cc6a);">📋 Copy Invite</button>
       </div>
+      <div id="inviteLink" class="key-info hidden" style="margin-top: 10px;"></div>
     </div>
     
     <!-- Secure Chat -->
@@ -108,7 +110,19 @@
         <h2 id="roomTitle" style="color: #00ff88;">🔒 Pure Client E2EE Room</h2>
         <button class="leave-btn" onclick="leaveRoom()">🚪 Leave Secure Room</button>
       </div>
-      
+
+      <div id="userListSection" style="margin-bottom: 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+          <strong style="color: #00ff88;">👥 Online (<span id="userCount">0</span>):</strong>
+          <button onclick="document.getElementById('userList').classList.toggle('hidden')" 
+                  style="background: rgba(0,255,136,0.3); border: 1px solid #00ff88; padding: 5px 12px; border-radius: 8px; font-size: 0.85em;">
+            📋 List
+          </button>
+        </div>
+        <div id="userList" class="hidden" style="max-height: 100px; overflow-y: auto; padding: 10px; background: rgba(0,0,0,0.4); border-radius: 10px; border: 1px solid rgba(0,255,136,0.3);">
+        </div>
+      </div>
+
       <div id="messages">
       </div>
       
@@ -127,10 +141,13 @@
     let username = '';
     let sharedSecret = '';
     let keyVisible = false;
-    
+    let currentRoomAttempt = null;
+    let lastMessageTime = 0;
+    let currentUsers = new Set();
+    let channel = null;
+
     console.log('🔒 Pure Client E2EE v1.0 LOADING...');
     
-    // 🔒 Pure Client-Side E2EE (Server NEVER sees plaintext or key)
     function encryptMessage(message, secret) {
       return CryptoJS.AES.encrypt(JSON.stringify({msg: message}), secret).toString();
     }
@@ -139,10 +156,12 @@
       try {
         const bytes = CryptoJS.AES.decrypt(encrypted, secret);
         const decrypted = bytes.toString(CryptoJS.enc.Utf8);
+        if (!decrypted) throw new Error('Empty decrypt');
         return JSON.parse(decrypted).msg;
       } catch (e) {
         console.error('Decryption failed:', e);
-        return '[🔓 DECRYPTION FAILED - Wrong key or corrupted?]';
+        showStatus('🔓 DECRYPTION FAILED - Check shared key matches!', 'error');
+        return '[🔓 WRONG KEY - Ask room owner for correct shared secret]';
       }
     }
     
@@ -159,9 +178,11 @@
       keyInput.type = keyVisible ? 'text' : 'password';
     }
     
-    // Pusher Functions (NO secretKey sent to server!)
+    function hashPassword(password) {
+      return CryptoJS.SHA256(password || '').toString(CryptoJS.enc.Hex);
+    }
+
     async function sendToPusher(eventData) {
-      // ✅ NO secretKey in eventData - pure client-side!
       try {
         const response = await fetch('/events', {
           method: 'POST',
@@ -174,25 +195,44 @@
       }
     }
     
+    function sanitizeUsername(name) {
+      return name.replace(/[<>\"'&]/g, '').trim().substring(0, 20) || 'anonymous';
+    }
+
     async function login() {
-      username = document.getElementById('username').value.trim();
+      let inputUsername = document.getElementById('username').value.trim();
+      username = sanitizeUsername(inputUsername);  // ✅ Sanitized
+      
       if (!username) return showStatus('⚠️ Enter username', 'error');
       
       document.getElementById('login').classList.add('hidden');
       document.getElementById('rooms').classList.remove('hidden');
-      showStatus('✅ Logged in. Generate/set E2EE key then create/join room.', 'success');
-      document.getElementById('secretKey').focus();
+      showStatus(`✅ Welcome ${username}! Set E2EE key → create/join.`, 'success');
     }
     
-    async function connectPusher() {
-      // Fetch Pusher config from server (keys from .env)
+    async function connectPusher() {async function connectPusher() {
       const response = await fetch('/pusher-config');
       const config = await response.json();
+      
+      const csrfToken = CryptoJS.SHA256(Date.now() + username).toString();
       
       pusher = new Pusher(config.key, {
         cluster: config.cluster,
         authEndpoint: '/pusher/auth',
-        auth: { headers: { username } }
+        auth: { 
+          headers: { 
+            username,
+            'X-CSRF-Token': csrfToken  // ✅ CSRF
+          } 
+        }
+      });
+
+      pusher.subscribe('pusher:global').bind('room-ready', (data) => {
+        if (data.roomId === currentRoomAttempt) {
+          console.log('✅ Room ready, subscribing:', data.roomId);
+          subscribeToRoom(data.roomId);
+          currentRoomAttempt = null;
+        }
       });
     }
     
@@ -200,25 +240,34 @@
       let roomId = document.getElementById('roomId').value.trim();
       sharedSecret = document.getElementById('secretKey').value.trim();
       
-      // ✅ FIX: Clean roomId - no backslashes/special chars
       roomId = roomId.replace(/[^a-zA-Z0-9-]/g, '').substring(0, 10);
-      
-      if (!roomId) return showStatus('⚠️ Enter valid Room ID (letters/numbers only)', 'error');
+      roomId = roomId.replace(/[^a-zA-Z0-9-]/g, '').substring(0, 10);
+      if (!roomId) return showStatus('⚠️ Enter valid Room ID (letters/numbers only/cannot be empty)', 'error');
       if (!sharedSecret) return showStatus('⚠️ Enter/generate E2EE Secret Key FIRST', 'warning');
       
       showStatus(`🔨 Creating room "${roomId}"...`, 'info');
       
+      currentRoomAttempt = roomId;
+  
+      showStatus(`🔨 Creating room "${roomId}"...`, 'info');
+      
+      const roomPassword = document.getElementById('roomPassword').value || '';
+      const hashedPassword = hashPassword(roomPassword);
+      
       const result = await sendToPusher({
         type: 'create',
         roomId,
-        password: document.getElementById('roomPassword').value || '',
+        password: hashedPassword,
         username
       });
       
-      if (result?.success) {
-        await connectPusher();
-        subscribeToRoom(roomId);
+      if (!result?.success) {
+        currentRoomAttempt = null;
+        showStatus(`❌ ${result?.error || 'Create failed'}`, 'error');
+        return;
       }
+      
+      showStatus(`✅ Room "${roomId}" created! Subscribing...`, 'success');
     }
     
     async function joinRoom() {
@@ -228,22 +277,54 @@
       // ✅ FIX: Clean roomId
       roomId = roomId.replace(/[^a-zA-Z0-9-]/g, '').substring(0, 10);
       
-      if (!roomId) return showStatus('⚠️ Enter valid Room ID', 'error');
+      if (!roomId) return showStatus('⚠️ Enter valid Room ID (letters/numbers only/cannot be empty)', 'error');
       if (!sharedSecret) return showStatus('⚠️ Enter correct E2EE Secret Key', 'warning');
       
       showStatus(`🔑 Joining room "${roomId}"...`, 'info');
       
+      currentRoomAttempt = roomId;
+  
+      const roomPassword = document.getElementById('roomPassword').value || '';
+      const hashedPassword = hashPassword(roomPassword);
+      
       const result = await sendToPusher({
         type: 'join',
         roomId,
-        password: document.getElementById('roomPassword').value || '',
+        password: hashedPassword,
         username
-        // secretKey STAYS CLIENT-SIDE ONLY!
       });
       
-      if (result?.success) {
-        await connectPusher();
-        subscribeToRoom(roomId);
+      if (!result?.success) {
+        currentRoomAttempt = null;
+        showStatus(`❌ ${result?.error || 'Join failed'}`, 'error');
+        return;
+      }
+      
+      showStatus(`✅ Joined "${roomId}"! Subscribing...`, 'success');
+    }
+
+    async function copyRoomInvite() {
+      const roomId = document.getElementById('roomId').value.trim();
+      if (!roomId) return showStatus('⚠️ Enter room ID first', 'warning');
+      
+      const password = document.getElementById('roomPassword').value;
+      const inviteUrl = `${window.location.origin}/#${roomId}`;
+      const inviteText = `🔒 Join Secure Room: ${inviteUrl}\n👤 Room ID: ${roomId}\n🔑 Password: ${password || 'None'}\n\n💡 All members need SAME E2EE key!`;
+      
+      try {
+        await navigator.clipboard.writeText(inviteText);
+        document.getElementById('inviteLink').textContent = inviteText;
+        document.getElementById('inviteLink').classList.remove('hidden');
+        showStatus('📋 Invite copied! Share with friends.', 'success');
+      } catch {
+        // Fallback for old browsers
+        const textArea = document.createElement('textarea');
+        textArea.value = inviteText;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+        showStatus('📋 Invite copied!', 'success');
       }
     }
     
@@ -253,19 +334,53 @@
       channel = pusher.subscribe(`presence-${roomId}`);
       
       channel.bind('pusher:subscription_succeeded', () => {
-        console.log('✅ Subscribed to secure room:', roomId);
+        console.log('✅ Subscribed to:', roomId);
         enterRoom(roomId);
+        updateUserList(Array.from(currentUsers));
       });
       
-      // 🔥 RECEIVE & DECRYPT messages
+      // 🔥 Messages
       channel.bind('client-message', (data) => {
         const decryptedMessage = decryptMessage(data.encrypted, sharedSecret);
         addMessage(data.username, decryptedMessage, data.timestamp, false);
       });
       
+      // ✅ USER TRACKING
       channel.bind('user-joined', (data) => {
-        addMessage('🔔 SYSTEM', `${data.username} joined the secure room`, null, false);
+        currentUsers.add(data.username);
+        updateUserList(Array.from(currentUsers));
+        addMessage('🔔 SYSTEM', `${data.username} joined the room`, null, false);
       });
+      
+      channel.bind('user-left', (data) => {
+        currentUsers.delete(data.username);
+        updateUserList(Array.from(currentUsers));
+        addMessage('🔔 SYSTEM', `${data.username} left the room`, null, false);
+      });
+      
+      channel.bind('room-created', (data) => {
+        currentUsers = new Set(data.users || []);
+        updateUserList(Array.from(currentUsers));
+      });
+    }
+
+    function updateUserList(users) {
+      document.getElementById('userCount').textContent = users.length;
+      
+      const userListEl = document.getElementById('userList');
+      if (users.length === 0) {
+        userListEl.innerHTML = '<em style="color: #888;">No users yet...</em>';
+        return;
+      }
+      
+      userListEl.innerHTML = users.map(username => `
+        <span style="display: inline-block; background: rgba(0,255,136,0.2); 
+                     padding: 4px 10px; margin: 3px 4px 3px 0; 
+                     border-radius: 15px; border: 1px solid rgba(0,255,136,0.4); 
+                     font-size: 0.85em; white-space: nowrap;">
+          ${username}
+        </span>
+      `).join('');
     }
     
     function enterRoom(roomId) {
@@ -281,6 +396,12 @@
     }
     
     function sendMessage() {
+      const now = Date.now();
+      if (now - lastMessageTime < 1000) {
+        showStatus('⏳ Wait 1 second between messages', 'warning');
+        return;
+      }
+      lastMessageTime = now;
       const input = document.getElementById('messageInput');
       const message = input.value.trim();
       
