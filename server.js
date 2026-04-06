@@ -55,9 +55,9 @@ app.post('/events', async (req, res) => {
   try {
     console.log('📥 Received:', req.body);
     
-    const { event: event = {} } = req.body || {};
+    const { event: eventData = {} } = req.body || {};
 
-    if (!event) {
+    if (!eventData) {
       return res.status(400).json({ error: 'Missing event data' });
     }
     
@@ -69,16 +69,14 @@ app.post('/events', async (req, res) => {
       timestamp: new Date().toISOString()
     };
     
-    // 🚀 IMMEDIATE RESPONSE
     res.json({ 
       success: true, 
       message: 'Event processing started',
       event: parsedEvent 
     });
     
-    // 🔥 BACKGROUND PROCESSING
     setImmediate(async () => {
-      await handleEvent(parsedEvent, data);
+      await handleEvent(parsedEvent);
     });
     
   } catch (error) {
@@ -88,7 +86,7 @@ app.post('/events', async (req, res) => {
 });
 
 // Room Event Handler
-async function handleEvent(event, data) {
+async function handleEvent(event) {
   console.log('🔄 Processing:', event.type, '→', event.roomId);
   
   try {
