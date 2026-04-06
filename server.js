@@ -62,10 +62,10 @@ app.post('/events', async (req, res) => {
     }
     
     const parsedEvent = {
-      type: event.type,
-      roomId: event.roomId,
-      password: event.password,
-      username: event.username,
+      type: eventData.type,
+      roomId: eventData.roomId,
+      password: eventData.password,
+      username: eventData.username,
       timestamp: new Date().toISOString()
     };
     
