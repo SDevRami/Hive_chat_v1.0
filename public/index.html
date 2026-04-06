@@ -302,19 +302,35 @@
       
       channel = pusher.subscribe(`presence-${roomId}`);
       
-      channel.bind('pusher:subscription_succeeded', () => {  // ← Remove members param
-        console.log('✅ Subscribed to secure room:', roomId);
-        updateUserList(channel.members.members);  // ← Get from channel
+      // 🔥 1. Subscription success - get initial members
+      channel.bind('pusher:subscription_succeeded', () => {
+        console.log('✅ Subscribed to presence room:', roomId);
+        console.log('👥 Members:', channel.members.count, Object.keys(channel.members.members));
+        
+        // ✅ Update list immediately
+        if (channel.members.count > 0) {
+          updateUserList(channel.members.members);
+        }
         enterRoom(roomId);
       });
       
-      // 🔥 RECEIVE & DECRYPT messages
+      // 🔥 2. Real-time member updates
+      channel.bind('pusher:member_added', (member) => {
+        console.log('➕ Member added:', member.info.username);
+        updateUserList(channel.members.members);
+      });
+      
+      channel.bind('pusher:member_removed', (member) => {
+        console.log('➖ Member removed:', member.info.username);
+        updateUserList(channel.members.members);
+      });
+      
+      // 🔥 3. Custom server events
       channel.bind('client-message', (data) => {
         const decryptedMessage = decryptMessage(data.encrypted, sharedSecret);
         addMessage(data.username, decryptedMessage, data.timestamp, false);
       });
       
-      // 👥 User events
       channel.bind('user-joined', (data) => {
         addMessage('🔔 SYSTEM', `${data.username} joined the secure room`, null, false);
       });
@@ -322,28 +338,28 @@
       channel.bind('user-left', (data) => {
         addMessage('🔔 SYSTEM', `${data.username} left the room`, null, false);
       });
-      
-      // 🔥 Pusher presence events for real-time user list
-      channel.bind('pusher:member_added', (member) => {
-        updateUserList(channel.members.members);
-      });
-      
-      channel.bind('pusher:member_removed', (member) => {
-        updateUserList(channel.members.members);
-      });
     }
     
     function updateUserList(members) {
+      console.log('🔄 Updating user list:', members);  // Debug log
+      
       const userList = document.getElementById('userList');
       const userCount = document.getElementById('userCount');
       
       userList.innerHTML = '';
       
       let count = 0;
-      Object.values(members).forEach(member => {
-        const username = member.info?.username || member.user_id || member.id || 'Unknown';
+      Object.values(members || {}).forEach(member => {
+        // ✅ Handle all possible Pusher data structures
+        const username = member.info?.username || 
+                        member.user_info?.username || 
+                        member.username || 
+                        member.id || 
+                        'Unknown';
         
-        if (username !== 'Unknown') {  // Skip unknowns
+        console.log('👤 Processing member:', username, member);  // Debug
+        
+        if (username !== 'Unknown') {
           const li = document.createElement('li');
           const isSelf = username === window.username;
           
@@ -355,6 +371,7 @@
       });
       
       userCount.textContent = `${count} users online`;
+      console.log(`✅ User list updated: ${count} users`);  // Debug
     }
 
     function enterRoom(roomId) {
@@ -363,7 +380,12 @@
       document.getElementById('chat').classList.remove('hidden');
       
       document.getElementById('roomTitle').textContent = `🔒 Secure Room: ${roomId}`;
-      document.getElementById('status').innerHTML = `🔐 Secret Key: ${sharedSecret ? sharedSecret.substring(0,2) + '...' : 'None'}</span>`;
+      document.getElementById('status').innerHTML = `🔐 Secret Key: ${sharedSecret ? sharedSecret.substring(0,2) + '...' : 'None'}`;
+      
+      // ✅ Force update user list on enter
+      if (channel && channel.members) {
+        updateUserList(channel.members.members);
+      }
       
       document.getElementById('messageInput').focus();
       document.getElementById('messages').innerHTML = '<div class="message system">🔒 Pure Client E2EE Ready!.</div>';
