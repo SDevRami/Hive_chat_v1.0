@@ -7,12 +7,6 @@ const rateLimit = require('express-rate-limit');
 const sanitizeInput = (input) => 
   input?.replace(/[<>\"'&]/g, '').trim().substring(0, 20) || 'anonymous';
 
-const allowedOrigins = [
-  'http://localhost:3000',
-  'http://127.0.0.1:3000',
-  'https://hive-chat-v1-0.onrender.com/'  // Add your domain
-];
-
 const app = express();
 
 const rooms = new Map();
@@ -22,17 +16,16 @@ const userHeartbeat = new Map();
 // Middleware
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow localhost + your domains
-    if (!origin || allowedOrigins.includes(origin) || origin.startsWith('http://localhost')) {
-      callback(null, origin || true);
+    const allowed = [
+      'http://localhost:3000',
+      'https://hive-chat-v1-0.onrender.com/'
+    ];
+    if (!origin || allowed.some(domain => origin.endsWith(domain))) {
+      callback(null, true);
     } else {
-      console.log('🚫 CORS blocked:', origin);
-      callback(new Error('CORS origin not allowed'));
+      callback(new Error('CORS not allowed'));
     }
-  },
-  credentials: true,
-  methods: ['GET', 'POST'],
-  allowedHeaders: ['Content-Type', 'X-CSRF-Token', 'username']
+  }
 }));
 
 app.use(express.json({ limit: '10mb' }));
