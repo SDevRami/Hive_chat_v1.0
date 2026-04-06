@@ -299,7 +299,7 @@
       });
       
       // ✅ 3. IMMEDIATELY show SENT message (local decrypt)
-      addMessage(username, message, null, true);
+      addMessage(username, message, new Date().toISOString(), true);
       
       input.value = '';
       console.log('✅ Sent encrypted:', encrypted.substring(0, 30) + '...');
