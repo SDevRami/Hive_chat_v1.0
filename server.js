@@ -10,7 +10,7 @@ const sanitizeInput = (input) =>
 const allowedOrigins = [
   'http://localhost:3000',
   'http://127.0.0.1:3000',
-  'https://yourdomain.com'  // Add your domain
+  'https://hive-chat-v1-0.onrender.com/'  // Add your domain
 ];
 
 const app = express();
