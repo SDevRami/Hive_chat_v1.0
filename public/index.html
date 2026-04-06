@@ -71,7 +71,7 @@
     <div id="login">
       <div class="form-group">
         <input id="username" placeholder="Your username" maxlength="20" autofocus>
-        <button onclick="login()">🚀 Secure Login</button>
+        <button id="loginBtn">🚀 Secure Login</button>
       </div>
     </div>
     
@@ -83,9 +83,9 @@
       <div class="key-section">
         <h3>🔑 Shared Secret Key <span class="e2ee-status">(Client-only, never sent to server)</span></h3>
         <div class="form-group">
-          <input id="secretKey" type="password" placeholder="Enter shared secret key (SHARE WITH ROOM MEMBERS)" maxlength="64">
-          <button onclick="generateKey()">🎲 Generate Secure Key</button>
-          <button onclick="toggleKeyVisibility()">👁️ Show/Hide</button>
+          <input id="secretKey" type="password" placeholder="Enter shared secret key (SHARE WITH ROOM MEMBERS)" maxlength="64"> 
+          <button id="generateKeyBtn">🎲 Generate Secure Key</button>
+          <button id="toggleKeyBtn">👁️ Show/Hide</button>  
         </div>
         <div class="key-info">
           📝 <strong>All room members MUST use SAME key</strong><br>
@@ -97,9 +97,9 @@
       <div class="form-group">
         <input id="roomId" placeholder="Room ID (e.g. 123)" maxlength="10">
         <input id="roomPassword" type="password" placeholder="Room Password (optional)">
-        <button onclick="createRoom()">🏠 Create Room</button>
-        <button onclick="joinRoom()">🔑 Join Room</button>
-        <button onclick="copyRoomInvite()" style="background: linear-gradient(45deg, #00ff88, #00cc6a);">📋 Copy Invite</button>
+        <button id="createRoomBtn">🏠 Create Room</button>
+        <button id="joinRoomBtn">🔑 Join Room</button>
+        <button id="copyInviteBtn" style="background: linear-gradient(45deg, #00ff88, #00cc6a);">📋 Copy Invite</button>
       </div>
       <div id="inviteLink" class="key-info hidden" style="margin-top: 10px;"></div>
     </div>
@@ -108,7 +108,7 @@
     <div id="chat" class="hidden">
       <div style="text-align: center; margin-bottom: 20px;">
         <h2 id="roomTitle" style="color: #00ff88;">🔒 Pure Client E2EE Room</h2>
-        <button class="leave-btn" onclick="leaveRoom()">🚪 Leave Secure Room</button>
+        <button id="leaveRoomBtn" class="leave-btn">🚪 Leave Secure Room</button> 
       </div>
 
       <div id="userListSection" style="margin-bottom: 20px;">
@@ -128,7 +128,7 @@
       
       <div class="chat-input-group">
         <input id="messageInput" placeholder="Type message..." maxlength="500">
-        <button id="sendBtn" onclick="sendMessage()">➤</button>
+        <button id="sendBtn">➤</button>
       </div>
     </div>
   </div>
@@ -466,41 +466,60 @@
     }
     
     // Event Listeners
-    document.addEventListener('DOMContentLoaded', () => {
-      const usernameInput = document.getElementById('username');
-      if (usernameInput) usernameInput.focus();
-      generateKey();
-    });
-    
-    const messageInput = document.getElementById('messageInput');
-    if (messageInput) {
-      messageInput.addEventListener('keypress', (e) => {
+    document.addEventListener('DOMContentLoaded', function() {
+      console.log('🔥 Initializing Hive Chat E2EE v1.1.0');
+      
+      // Login
+      document.getElementById('loginBtn').addEventListener('click', login);
+      document.getElementById('username').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') login();
+      });
+      
+      // Key controls
+      document.getElementById('generateKeyBtn').addEventListener('click', generateKey);
+      document.getElementById('toggleKeyBtn').addEventListener('click', toggleKeyVisibility);
+      
+      // Room controls
+      document.getElementById('createRoomBtn').addEventListener('click', createRoom);
+      document.getElementById('joinRoomBtn').addEventListener('click', joinRoom);
+      document.getElementById('copyInviteBtn').addEventListener('click', copyRoomInvite);
+      
+      // Chat controls
+      document.getElementById('leaveRoomBtn').addEventListener('click', leaveRoom);
+      document.getElementById('sendBtn').addEventListener('click', sendMessage);
+      document.getElementById('messageInput').addEventListener('keypress', (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
           e.preventDefault();
           sendMessage();
         }
       });
-    };
-    
-    document.getElementById('username').addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') login();
-    });
-    
-    const roomIdInput = document.getElementById('roomId');
-    if (roomIdInput) {
-      roomIdInput.addEventListener('keypress', (e) => {
+      
+      // User list toggle
+      document.getElementById('toggleUserListBtn').addEventListener('click', function() {
+        document.getElementById('userList').classList.toggle('hidden');
+      });
+      
+      // Room ID enter key
+      document.getElementById('roomId').addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
-          if (document.getElementById('secretKey').value) {
+          if (document.getElementById('secretKey').value.trim()) {
             createRoom();
           } else {
-            showStatus('⚠️ Set E2EE key first', 'warning');
+            showStatus('⚠️ Generate/set E2EE key first', 'warning');
           }
         }
       });
-    };
+      
+      // Auto-focus
+      const usernameInput = document.getElementById('username');
+      if (usernameInput) usernameInput.focus();
+      
+      // Generate initial key
+      generateKey();
+      
+      console.log('✅ 🔒 Pure Client E2EE v1.0 FULLY LOADED');
+    });
     
-    console.log('✅ 🔒 Pure Client E2EE v1.0 FULLY LOADED');
-    console.log('💡 Server sees ONLY encrypted gibberish - 100% client-side!');
   </script>
 </body>
 </html>
