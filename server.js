@@ -62,14 +62,6 @@ app.post('/events', async (req, res) => {
     if (!eventData) {
       return res.status(400).json({ success: false, error: 'Missing event data' });
     }
-
-    const now = Date.now();
-    const lastTime = userLastMessage.get(parsedEvent.username) || 0;
-    if (now - lastTime < 500) {  // 500ms server-side
-      return res.status(429).json({ success: false, error: 'Too fast! Wait 0.5s' });
-    }
-    userLastMessage.set(parsedEvent.username, now);
-
     const parsedEvent = {
       type: eventData.type,
       roomId: eventData.roomId,
@@ -78,6 +70,13 @@ app.post('/events', async (req, res) => {
       timestamp: new Date().toISOString()
     };
     
+    const now = Date.now();
+    const lastTime = userLastMessage.get(parsedEvent.username) || 0;
+    if (now - lastTime < 500) {  // 500ms server-side
+      return res.status(429).json({ success: false, error: 'Too fast! Wait 0.5s' });
+    }
+    userLastMessage.set(parsedEvent.username, now);
+
     // ⚠️ FIXED: Wait for result, return ACTUAL success
     const result = await handleEvent(parsedEvent);
     res.json({ 
@@ -215,7 +214,7 @@ async function joinRoom(event) {
       });
       return { success: false, error };  // ← FIXED
     }
-    
+
     if (room.users.length >= 50) {
       return { success: false, error: 'Room full (50 user limit)' };
     }
