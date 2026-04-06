@@ -15,17 +15,9 @@ const userHeartbeat = new Map();
 
 // Middleware
 app.use(cors({
-  origin: (origin, callback) => {
-    const allowed = [
-      'http://localhost:3000',
-      'https://hive-chat-v1-0.onrender.com/'
-    ];
-    if (!origin || allowed.some(domain => origin.endsWith(domain))) {
-      callback(null, true);
-    } else {
-      callback(new Error('CORS not allowed'));
-    }
-  }
+  origin: true,           // ✅ NUCLEAR FIX
+  credentials: true,
+  methods: ['GET','POST','OPTIONS']
 }));
 
 app.use(express.json({ limit: '10mb' }));
