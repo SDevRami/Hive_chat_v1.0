@@ -233,7 +233,7 @@
       pusher = new Pusher(config.key, {
         cluster: config.cluster,
         authEndpoint: '/pusher/auth',
-        auth: { headers: { username } }
+        auth: { headers: { 'username': username  } }
       });
     }
     
@@ -339,19 +339,22 @@
       
       userList.innerHTML = '';
       
+      let count = 0;
       Object.values(members).forEach(member => {
-        // ✅ FIXED: Handle Pusher presence data structure
-        const username = member.info?.username || member.id || 'Unknown';
-        const li = document.createElement('li');
-        const isSelf = username === window.username;  // Use global username
-        const isOwner = false; // Owner detection via server events only
+        const username = member.info?.username || member.user_id || member.id || 'Unknown';
         
-        li.className = isSelf ? 'self' : (isOwner ? 'owner' : '');
-        li.textContent = username;
-        userList.appendChild(li);
+        if (username !== 'Unknown') {  // Skip unknowns
+          const li = document.createElement('li');
+          const isSelf = username === window.username;
+          
+          li.className = isSelf ? 'self' : '';
+          li.textContent = username;
+          userList.appendChild(li);
+          count++;
+        }
       });
       
-      userCount.textContent = `${Object.keys(members).length} users online`;
+      userCount.textContent = `${count} users online`;
     }
 
     function enterRoom(roomId) {
