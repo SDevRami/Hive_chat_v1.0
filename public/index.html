@@ -295,11 +295,11 @@
       channel.trigger('client-message', {
         username,
         encrypted,  // Server gets ONLY this encrypted string
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toLocaleString()
       });
       
       // ✅ 3. IMMEDIATELY show SENT message (local decrypt)
-      addMessage(username, message, new Date().toISOString(), true);
+      addMessage(username, message, new Date().toLocaleString(), true);
       
       input.value = '';
       console.log('✅ Sent encrypted:', encrypted.substring(0, 30) + '...');
