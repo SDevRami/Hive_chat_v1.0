@@ -223,7 +223,7 @@
     async function login() {
       username = document.getElementById('username').value.trim();
       if (!username) return showStatus('⚠️ Enter username', 'error');
-      window.username = encryptedMessage(username, sharedSecret);
+      window.username = encryptMessage(username, sharedSecret);
       document.getElementById('login').classList.add('hidden');
       document.getElementById('rooms').classList.remove('hidden');
       showStatus('✅ Logged in. Generate/set E2EE key then create/join room.', 'success');
