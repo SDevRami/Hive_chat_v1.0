@@ -302,7 +302,7 @@
       const hashedPassword = hashPassword(roomPassword);  // ← CLIENT HASH
       
       const result = await sendToPusher({
-        type: 'create',
+        type: 'join',
         roomId,
         password: hashedPassword,
         encryptedUsername: encryptUsername(username, sharedSecret)  // 🔒
