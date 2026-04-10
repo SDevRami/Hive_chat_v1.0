@@ -189,6 +189,20 @@
       }
     }
     
+    function encryptUsername(username, secret) {
+      return CryptoJS.AES.encrypt(username, secret).toString();
+    }
+
+    function decryptUsername(encrypted, secret) {
+      try {
+        const bytes = CryptoJS.AES.decrypt(encrypted, secret);
+        const decrypted = bytes.toString(CryptoJS.enc.Utf8);
+        return decrypted || '[Unknown]';
+      } catch (e) {
+        return '[🔓]';
+      }
+    }
+
     function hashPassword(password) {
       return CryptoJS.SHA256(password || '').toString(CryptoJS.enc.Hex);
     }
@@ -223,7 +237,7 @@
     async function login() {
       username = document.getElementById('username').value.trim();
       if (!username) return showStatus('⚠️ Enter username', 'error');
-      window.username = encryptMessage(username, sharedSecret);
+      window.username = username;
       document.getElementById('login').classList.add('hidden');
       document.getElementById('rooms').classList.remove('hidden');
       showStatus('✅ Logged in. Generate/set E2EE key then create/join room.', 'success');
@@ -238,7 +252,7 @@
       pusher = new Pusher(config.key, {
         cluster: config.cluster,
         authEndpoint: '/pusher/auth',
-        auth: { headers: { 'username': username  } }
+        auth: { headers: { 'username': encryptUsername(username, sharedSecret) } }
       });
     }
     
@@ -260,8 +274,8 @@
       const result = await sendToPusher({
         type: 'create',
         roomId,
-        password: hashedPassword,  // ← SEND HASHED
-        username
+        password: hashedPassword,
+        encryptedUsername: encryptUsername(username, sharedSecret)  // 🔒
       });
       
       if (result?.success) {
@@ -288,10 +302,10 @@
       const hashedPassword = hashPassword(roomPassword);  // ← CLIENT HASH
       
       const result = await sendToPusher({
-        type: 'join',
+        type: 'create',
         roomId,
-        password: hashedPassword,  // ← SEND HASHED
-        username
+        password: hashedPassword,
+        encryptedUsername: encryptUsername(username, sharedSecret)  // 🔒
       });
       
       if (result?.success) {
@@ -332,16 +346,19 @@
       
       // 🔥 3. Custom server events
       channel.bind('client-message', (data) => {
+        const decryptedUsername = decryptUsername(data.encryptedUsername, sharedSecret);
         const decryptedMessage = decryptMessage(data.encrypted, sharedSecret);
-        addMessage(data.username, decryptedMessage, data.timestamp, false);
+        addMessage(decryptedUsername, decryptedMessage, data.timestamp, false);
       });
       
       channel.bind('user-joined', (data) => {
-        addMessage('🔔 SYSTEM', `${data.username} joined the secure room`, null, false);
+        const decryptedUsername = decryptUsername(data.encryptedUsername, sharedSecret);
+        addMessage('🔔 SYSTEM', `${decryptedUsername} joined the secure room`, null, false);
       });
-      
+
       channel.bind('user-left', (data) => {
-        addMessage('🔔 SYSTEM', `${data.username} left the room`, null, false);
+        const decryptedUsername = decryptUsername(data.encryptedUsername, sharedSecret);
+        addMessage('🔔 SYSTEM', `${decryptedUsername} left the room`, null, false);
       });
     }
     
@@ -356,11 +373,12 @@
       let count = 0;
       Object.values(members || {}).forEach(member => {
         // ✅ Handle all possible Pusher data structures
-        const username = member.info?.username || 
-                        member.user_info?.username || 
-                        member.username || 
-                        member.id || 
-                        'Unknown';
+        const encryptedUsername = member.info?.username || 
+                         member.user_info?.username || 
+                         member.username || 
+                         member.id || 
+                         '';
+        const username = decryptUsername(encryptedUsername, sharedSecret);
         
         console.log('👤 Processing member:', username, member);  // Debug
         
@@ -416,7 +434,7 @@
       
       // 🔒 2. Send ENCRYPTED data to Pusher (server sees gibberish)
       channel.trigger('client-message', {
-        username,
+        encryptedUsername: encryptUsername(username, sharedSecret),
         encrypted,  // Server gets ONLY this encrypted string
         timestamp: new Date().toISOString()
       });
@@ -430,7 +448,7 @@
     
     function leaveRoom() {
       if (channel) {
-        sendToPusher({ type: 'leave', roomId: currentRoom, username });
+        sendToPusher({ type: 'leave', roomId: currentRoom, encryptedUsername: encryptUsername(username, sharedSecret) });
         channel.unsubscribe();
       }
       currentRoom = null;
