@@ -323,27 +323,30 @@
       
       // 🔥 2. Real-time member updates
       channel.bind('pusher:member_added', (member) => {
-        console.log('➕ Member added:', member.info.username);
+        console.log('➕ Member added:', decryptMessage(member.info.username, sharedSecret));
         updateUserList(channel.members.members);
       });
       
       channel.bind('pusher:member_removed', (member) => {
-        console.log('➖ Member removed:', member.info.username);
+        console.log('➖ Member removed:', decryptMessage(member.info.username, sharedSecret));
         updateUserList(channel.members.members);
       });
       
       // 🔥 3. Custom server events
       channel.bind('client-message', (data) => {
         const decryptedMessage = decryptMessage(data.encrypted, sharedSecret);
-        addMessage(data.username, decryptedMessage, data.timestamp, false);
+        const decryptedUsername = decryptMessage(data.username, sharedSecret);
+        addMessage(decryptedUsername, decryptedMessage, data.timestamp, false);
       });
       
       channel.bind('user-joined', (data) => {
-        addMessage('🔔 SYSTEM', `${data.username} joined the secure room`, null, false);
+        const decryptedUsername = decryptMessage(data.username, sharedSecret);
+        addMessage('🔔 SYSTEM', `${decryptedUsername} joined the secure room`, null, false);
       });
       
       channel.bind('user-left', (data) => {
-        addMessage('🔔 SYSTEM', `${data.username} left the room`, null, false);
+        const decryptedUsername = decryptMessage(data.username, sharedSecret);
+        addMessage('🔔 SYSTEM', `${decryptedUsername} left the room`, null, false);
       });
     }
     
@@ -357,10 +360,11 @@
       
       let count = 0;
       Object.values(members || {}).forEach(member => {
+
         // ✅ Handle all possible Pusher data structures
-        const username = member.info?.username || 
-                        member.user_info?.username || 
-                        member.username || 
+        const username = decryptMessage(member.info?.username, sharedSecret) || 
+                        decryptMessage(member.user_info?.username, sharedSecret) || 
+                        decryptMessage(member.username, sharedSecret) || 
                         member.id || 
                         'Unknown';
         
