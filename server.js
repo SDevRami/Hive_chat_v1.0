@@ -77,6 +77,7 @@ app.post('/events', async (req, res) => {
       timestamp: new Date().toISOString()
     };
 
+    const now = Date.now();
     // Update rate limiting key:
     const lastTime = userLastMessage.get(parsedEvent.encryptedUsername) || 0;
     if (now - lastTime < 500) {
