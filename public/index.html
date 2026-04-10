@@ -238,7 +238,7 @@
       pusher = new Pusher(config.key, {
         cluster: config.cluster,
         authEndpoint: '/pusher/auth',
-        auth: { headers: { 'username': username  } }
+        auth: { headers: { 'username': hashPassword(username)  } }
       });
     }
     
@@ -256,12 +256,13 @@
       
       const roomPassword = document.getElementById('roomPassword').value || '';
       const hashedPassword = hashPassword(roomPassword);  // ← CLIENT HASH
-      
+      const hashedUsername = hashPassword(username);
+
       const result = await sendToPusher({
         type: 'create',
         roomId,
-        password: hashedPassword,  // ← SEND HASHED
-        username
+        password: hashedPassword,
+        username: hashedUsername 
       });
       
       if (result?.success) {
@@ -286,12 +287,13 @@
       
       const roomPassword = document.getElementById('roomPassword').value || '';
       const hashedPassword = hashPassword(roomPassword);  // ← CLIENT HASH
-      
+      const hashedUsername = hashPassword(username);
+
       const result = await sendToPusher({
         type: 'join',
         roomId,
-        password: hashedPassword,  // ← SEND HASHED
-        username
+        password: hashedPassword,
+        username: hashedUsername 
       });
       
       if (result?.success) {
@@ -416,7 +418,7 @@
       
       // 🔒 2. Send ENCRYPTED data to Pusher (server sees gibberish)
       channel.trigger('client-message', {
-        username,
+        hashPassword(username),
         encrypted,  // Server gets ONLY this encrypted string
         timestamp: new Date().toISOString()
       });
@@ -430,7 +432,8 @@
     
     function leaveRoom() {
       if (channel) {
-        sendToPusher({ type: 'leave', roomId: currentRoom, username });
+        const hashedUsername = hashPassword(username);
+        sendToPusher({ type: 'leave', roomId: currentRoom, username: hashedUsername });
         channel.unsubscribe();
       }
       currentRoom = null;
