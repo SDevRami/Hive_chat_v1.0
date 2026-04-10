@@ -418,7 +418,7 @@
       
       // 🔒 2. Send ENCRYPTED data to Pusher (server sees gibberish)
       channel.trigger('client-message', {
-        hashPassword(username),
+        username: hashPassword(username),
         encrypted,  // Server gets ONLY this encrypted string
         timestamp: new Date().toISOString()
       });
